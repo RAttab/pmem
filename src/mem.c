@@ -1,6 +1,6 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <sys/mman.h>
+
+#include "common.h"
 
 
 // -----------------------------------------------------------------------------
@@ -9,7 +9,7 @@
 
 static __thread void *buckets[8];
 static const size_t bucket_vma = -1UL;
-static const size_t page_len = 1UL << 10;
+static const size_t page_len = 4096UL;
 
 
 // -----------------------------------------------------------------------------
@@ -62,20 +62,26 @@ static size_t bucket_to_len(size_t bucket)
 // pmem
 // -----------------------------------------------------------------------------
 
-static void *mem_alloc(size_t len)
+void *mem_alloc(size_t len)
 {
     size_t bucket = len_to_bucket(len);
     return bucket == bucket_vma ? vma_alloc(len) : bucket_alloc(bucket);
 }
 
+void *mem_calloc(size_t n, size_t len)
+{
+    void *ptr = mem_alloc(n * len);
+    memset(ptr, 0, n * len);
+    return ptr;
+}
 
-static void mem_free(void *ptr)
+void mem_free(void *ptr)
 {
     size_t bucket = ptr_to_bucket(ptr);
     bucket == bucket_vma ? vma_free(ptr) : bucket_free(bucket, ptr);
 }
 
-static void mem_realloc(void *ptr, size_t len)
+void *mem_realloc(void *ptr, size_t len)
 {
     size_t bucket = ptr_to_bucket(ptr);
     return bucket == bucket_vma ?
