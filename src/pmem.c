@@ -86,8 +86,8 @@ pmem_public void free(void *ptr)
 {
     pmem_lock();
 
-    mem_free(ptr);
     prof_free(ptr);
+    mem_free(ptr);
 
     pmem_unlock();
 }
