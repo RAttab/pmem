@@ -24,6 +24,7 @@ CFLAGS="$CFLAGS -Wno-strict-aliasing"
 CFLAGS="$CFLAGS -fno-strict-aliasing"
 CFLAGS="$CFLAGS -Wno-implicit-fallthrough"
 CFLAGS="$CFLAGS -fPIC"
+CFLAGS="$CFLAGS -fvisibility=hidden"
 
 OBJ=""
 for src in "${SRC[@]}"; do

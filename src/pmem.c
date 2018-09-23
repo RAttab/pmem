@@ -37,7 +37,9 @@ static inline void pmem_unlock()
 // pmem
 // -----------------------------------------------------------------------------
 
-void *malloc(size_t size)
+#define pmem_public __attribute__((visibility("default")))
+
+pmem_public void *malloc(size_t size)
 {
     void *ptr = NULL;
     {
@@ -51,7 +53,7 @@ void *malloc(size_t size)
     return ptr;
 }
 
-void *calloc(size_t nmemb, size_t size)
+pmem_public void *calloc(size_t nmemb, size_t size)
 {
     void *ptr = NULL;
     {
@@ -65,7 +67,7 @@ void *calloc(size_t nmemb, size_t size)
     return ptr;
 }
 
-void *realloc(void *old, size_t size)
+pmem_public void *realloc(void *old, size_t size)
 {
     void *new = NULL;
     {
@@ -80,7 +82,7 @@ void *realloc(void *old, size_t size)
     return new;
 }
 
-void free(void *ptr)
+pmem_public void free(void *ptr)
 {
     pmem_lock();
 
