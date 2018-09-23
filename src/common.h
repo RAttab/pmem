@@ -22,6 +22,7 @@ pmem_malloc void *mem_alloc(size_t len);
 pmem_malloc void *mem_calloc(size_t n, size_t len);
 void *mem_realloc(void *ptr, size_t len);
 void mem_free(void *ptr);
+size_t mem_usable_size(void *ptr);
 
 
 // -----------------------------------------------------------------------------

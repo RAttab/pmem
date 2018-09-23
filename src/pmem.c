@@ -1,4 +1,5 @@
 #include <stdatomic.h>
+#include <errno.h>
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <linux/futex.h>
@@ -33,11 +34,12 @@ static inline void pmem_unlock()
     futex(&lock, FUTEX_WAKE, 1);
 }
 
+
 // -----------------------------------------------------------------------------
-// pmem
+// basic
 // -----------------------------------------------------------------------------
 
-pmem_public pmem_malloc void *malloc(size_t size)
+pmem_public void *malloc(size_t size)
 {
     void *ptr = NULL;
     {
@@ -51,7 +53,7 @@ pmem_public pmem_malloc void *malloc(size_t size)
     return ptr;
 }
 
-pmem_public pmem_malloc void *calloc(size_t nmemb, size_t size)
+pmem_public void *calloc(size_t nmemb, size_t size)
 {
     void *ptr = NULL;
     {
@@ -88,4 +90,45 @@ pmem_public void free(void *ptr)
     prof_free(ptr);
 
     pmem_unlock();
+}
+
+
+// -----------------------------------------------------------------------------
+// extended
+// -----------------------------------------------------------------------------
+
+static inline size_t align(size_t align, size_t size)
+{
+    return (size + (align - 1)) & ~(align - 1);
+}
+
+pmem_public int posix_memalign(void **memptr, size_t alignment, size_t size)
+{
+    *memptr = malloc(align(alignment, size));
+    return *memptr ? 0 : ENOMEM;
+}
+
+pmem_public void *aligned_alloc(size_t alignment, size_t size)
+{
+    return malloc(align(alignment, size));
+}
+
+pmem_public void *memalign(size_t alignment, size_t size)
+{
+    return malloc(align(alignment, size));
+}
+
+pmem_public void *valloc(size_t size)
+{
+    return memalign(sysconf(_SC_PAGE_SIZE), size);
+}
+
+pmem_public void *pvalloc(size_t size)
+{
+    return malloc(align(size, sysconf(_SC_PAGE_SIZE)));
+}
+
+pmem_public size_t malloc_usable_size(void *ptr)
+{
+    return mem_usable_size(ptr);
 }

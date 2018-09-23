@@ -103,6 +103,12 @@ static void *vma_realloc(void *raw, size_t len)
     return ptr_inc(new_ptr, page_len);
 }
 
+static size_t vma_usable_size(void *raw)
+{
+    void *ptr = ptr_dec(raw, page_len);
+    return ptr_read_u64(ptr) - page_len;
+}
+
 
 // -----------------------------------------------------------------------------
 // bucket
@@ -180,4 +186,11 @@ void *mem_realloc(void *ptr, size_t len)
     size_t bucket = ptr_to_bucket(ptr);
     return bucket == bucket_vma ?
         vma_realloc(ptr, len) : bucket_realloc(bucket, ptr, len);
+}
+
+size_t mem_usable_size(void *ptr)
+{
+    size_t bucket = ptr_to_bucket(ptr);
+    return bucket == bucket_vma ?
+        vma_usable_size(ptr) : bucket_to_len(bucket);
 }
