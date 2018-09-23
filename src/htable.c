@@ -176,3 +176,19 @@ struct htable_ret htable_del(struct htable *ht, uint64_t key)
 
     return (struct htable_ret) { .ok = false };
 }
+
+struct htable_bucket * htable_next(
+        struct htable *ht, struct htable_bucket *bucket)
+{
+    if (!ht->table) return NULL;
+
+    size_t i = 0;
+    if (bucket) i = (bucket - ht->table) + 1;
+
+    for (; i < ht->cap; ++i) {
+        bucket = &ht->table[i];
+        if (bucket->key) return bucket;
+    }
+
+    return NULL;
+}
