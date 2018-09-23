@@ -132,24 +132,6 @@ struct htable_ret htable_put(struct htable *ht, uint64_t key, uint64_t value)
     return htable_put(ht, key, value);
 }
 
-struct htable_ret htable_xchg(struct htable *ht, uint64_t key, uint64_t value)
-{
-    uint64_t hash = hash_key(key);
-    htable_resize(ht, probe_window);
-
-    for (size_t i = 0; i < probe_window; ++i) {
-        struct htable_bucket *bucket = &ht->table[(hash + i) % ht->cap];
-
-        if (bucket->key != key) continue;
-
-        uint64_t old_value = bucket->value;
-        bucket->value = value;
-        return (struct htable_ret) { .ok = true, .value = old_value };
-    }
-
-    return (struct htable_ret) { .ok = false };
-}
-
 struct htable_ret htable_del(struct htable *ht, uint64_t key)
 {
     uint64_t hash = hash_key(key);
