@@ -6,13 +6,20 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+// -----------------------------------------------------------------------------
+// attributes
+// -----------------------------------------------------------------------------
+
+#define pmem_public __attribute__((visibility("default")))
+#define pmem_malloc __attribute__((malloc))
+
 
 // -----------------------------------------------------------------------------
 // mem
 // -----------------------------------------------------------------------------
 
-void *mem_alloc(size_t len);
-void *mem_calloc(size_t n, size_t len);
+pmem_malloc void *mem_alloc(size_t len);
+pmem_malloc void *mem_calloc(size_t n, size_t len);
 void *mem_realloc(void *ptr, size_t len);
 void mem_free(void *ptr);
 
