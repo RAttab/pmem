@@ -1,3 +1,7 @@
+#pragma once
+
+#include <assert.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -17,9 +21,7 @@ void mem_free(void *ptr);
 // prof
 // -----------------------------------------------------------------------------
 
-void *prof_alloc(size_t len);
-void *prof_calloc(size_t n, size_t len);
-void *prof_realloc(void *ptr, size_t len);
+void prof_alloc(void *ptr, size_t len);
 void prof_free(void *ptr);
 
 

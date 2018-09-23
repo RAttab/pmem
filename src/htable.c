@@ -1,13 +1,4 @@
-/* htable.c
-   Rémi Attab (remi.attab@gmail.com), 10 Mar 2016
-   FreeBSD-style copyright and disclaimer apply
-*/
-
-#include "htable.h"
-
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
+#include "common.h"
 
 // -----------------------------------------------------------------------------
 // config
@@ -40,7 +31,7 @@ inline uint64_t hash_key(uint64_t key)
 
 void htable_reset(struct htable *ht)
 {
-    free(ht->table);
+    mem_free(ht->table);
     *ht = (struct htable) {0};
 }
 

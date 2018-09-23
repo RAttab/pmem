@@ -18,7 +18,7 @@ static const size_t page_len = 4096UL;
 
 static inline uint64_t ptr_read_u64(void *ptr)
 {
-    return *((uint64_t *) ptr;
+    return *((uint64_t *) ptr);
 }
 
 static inline void ptr_write_u64(void *ptr, uint64_t data)
@@ -26,17 +26,21 @@ static inline void ptr_write_u64(void *ptr, uint64_t data)
     *((uint64_t *) ptr) = data;
 }
 
-static inline void *ptr_inc(void *ptr, ssize_t len)
+static inline void *ptr_inc(void *ptr, size_t len)
 {
     return ((uint8_t *) ptr) + len;
+}
+
+static inline void *ptr_dec(void *ptr, size_t len)
+{
+    return ((uint8_t *) ptr) - len;
 }
 
 static size_t ptr_to_bucket(void *ptr)
 {
     static const uintptr_t mask = page_len - 1;
-    if (!(ptr & mask)) return bucket_vma;
-
-    return ptr_read_u64(ptr & ~mask);
+    void *masked = (void *) (((uint64_t) ptr) & ~mask);
+    return ptr == masked ? bucket_vma : ptr_read_u64(masked);
 }
 
 static size_t len_to_bucket(size_t len)
@@ -78,7 +82,7 @@ static void *vma_alloc(size_t len)
 
 static void vma_free(void *raw)
 {
-    void *ptr = ptr_inc(raw, -page_len);
+    void *ptr = ptr_dec(raw, page_len);
     size_t vma_len = ptr_read_u64(ptr);
 
     munmap(ptr, vma_len);
@@ -86,7 +90,7 @@ static void vma_free(void *raw)
 
 static void *vma_realloc(void *raw, size_t len)
 {
-    void *ptr = ptr_inc(raw, -page_len);
+    void *ptr = ptr_dec(raw, page_len);
     size_t vma_len = ptr_read_u64(ptr);
 
     if ((vma_len - page_len) >= len) return raw;
@@ -117,19 +121,19 @@ static void *bucket_alloc(size_t bucket)
         void *first = ptr_inc(ptr, len);
         void *last = ptr_inc(ptr, page_len - len);
         for (void *it = first; it < last; it = ptr_inc(it, len))
-            ptr_write_u64(it, ptr_inc(it, len));
+            ptr_write_u64(it, (uint64_t) ptr_inc(it, len));
 
         buckets[bucket] = first;
     }
 
     void *ptr = buckets[bucket];
-    buckets[bucket] = ptr_read_u64(ptr);
+    buckets[bucket] = (void *) ptr_read_u64(ptr);
     return ptr;
 }
 
 static void bucket_free(size_t bucket, void *ptr)
 {
-    ptr_write_u64(ptr, buckets[bucket]);
+    ptr_write_u64(ptr, (uint64_t) buckets[bucket]);
     buckets[bucket] = ptr;
 }
 

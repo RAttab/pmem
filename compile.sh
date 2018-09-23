@@ -23,6 +23,7 @@ CFLAGS="$CFLAGS -Winit-self"
 CFLAGS="$CFLAGS -Wno-strict-aliasing"
 CFLAGS="$CFLAGS -fno-strict-aliasing"
 CFLAGS="$CFLAGS -Wno-implicit-fallthrough"
+CFLAGS="$CFLAGS -fPIC"
 
 OBJ=""
 for src in "${SRC[@]}"; do
@@ -30,4 +31,4 @@ for src in "${SRC[@]}"; do
     OBJ="$OBJ $src.o"
 done
 
-$CC -o libpmem.so $OBJ
+$CC -o libpmem.so -shared $OBJ
