@@ -6,10 +6,18 @@ set -o errexit -o nounset -o pipefail -o xtrace
 
 declare -a SRC
 SRC=(htable mem prof pmem)
+
+declare -a TEST
+TEST=(basics)
+
 CC=${OTHERC:-gcc}
 
 CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -I${PREFIX}/src"
+
+CFLAGS="$CFLAGS -fPIC"
+CFLAGS="$CFLAGS -fvisibility=hidden"
+CFLAGS="$CFLAGS -fno-strict-aliasing"
 
 CFLAGS="$CFLAGS -Werror -Wall -Wextra"
 CFLAGS="$CFLAGS -Wundef"
@@ -21,10 +29,7 @@ CFLAGS="$CFLAGS -Wswitch-enum"
 CFLAGS="$CFLAGS -Wswitch-default"
 CFLAGS="$CFLAGS -Winit-self"
 CFLAGS="$CFLAGS -Wno-strict-aliasing"
-CFLAGS="$CFLAGS -fno-strict-aliasing"
 CFLAGS="$CFLAGS -Wno-implicit-fallthrough"
-CFLAGS="$CFLAGS -fPIC"
-CFLAGS="$CFLAGS -fvisibility=hidden"
 
 OBJ=""
 for src in "${SRC[@]}"; do
@@ -33,3 +38,8 @@ for src in "${SRC[@]}"; do
 done
 
 $CC -o libpmem.so -shared $OBJ
+
+for test in "${TEST[@]}"; do
+    $CC -o "test_$test" "${PREFIX}/test/$test.c" $CFLAGS
+    LD_PRELOAD=./libpmem.so "./test_$test"
+done
