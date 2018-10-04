@@ -1,4 +1,3 @@
-#include <stdatomic.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/syscall.h>
@@ -11,27 +10,31 @@
 // lock
 // -----------------------------------------------------------------------------
 
-static atomic_int lock = 0;
-
 // linux is fucking stupid sometimes...
-static int futex(atomic_int *uaddr, int futex_op, int val)
+static inline int futex(atomic_int *uaddr, int futex_op, int val)
 {
     return syscall(SYS_futex, (int *) uaddr, futex_op, val, NULL, 0, 0);
 }
 
-static inline void pmem_lock()
+void pmem_lock(lock_t *lock)
 {
     int exp = 0;
-    while (!atomic_compare_exchange_strong(&lock, &exp, 1)) {
-        futex(&lock, FUTEX_WAIT, 1);
+    while (!atomic_compare_exchange_strong(lock, &exp, 1)) {
+        futex(lock, FUTEX_WAIT, 1);
         exp = 0;
     }
 }
 
-static inline void pmem_unlock()
+bool pmem_try_lock(lock_t *lock)
 {
-    atomic_store(&lock, 0);
-    futex(&lock, FUTEX_WAKE, 1);
+    int exp = 0;
+    return atomic_compare_exchange_strong(lock, &exp, 1);
+}
+
+void pmem_unlock(lock_t *lock)
+{
+    atomic_store(lock, 0);
+    futex(lock, FUTEX_WAKE, 1);
 }
 
 
@@ -41,55 +44,30 @@ static inline void pmem_unlock()
 
 pmem_public void *malloc(size_t size)
 {
-    void *ptr = NULL;
-    {
-        pmem_lock();
-
-        ptr = mem_alloc(size);
-        prof_alloc(ptr, size);
-
-        pmem_unlock();
-    }
+    void *ptr = mem_alloc(size);
+    prof_alloc(ptr, size);
     return ptr;
 }
 
 pmem_public void *calloc(size_t nmemb, size_t size)
 {
-    void *ptr = NULL;
-    {
-        pmem_lock();
-
-        ptr = mem_calloc(nmemb, size);
-        prof_alloc(ptr, nmemb * size);
-
-        pmem_unlock();
-    }
+    void *ptr = mem_calloc(nmemb, size);
+    prof_alloc(ptr, nmemb * size);
     return ptr;
 }
 
 pmem_public void *realloc(void *old, size_t size)
 {
-    void *new = NULL;
-    {
-        pmem_lock();
-
-        prof_free(old);
-        new = mem_realloc(old, size);
-        prof_alloc(new, size);
-
-        pmem_unlock();
-    }
+    prof_free(old);
+    void *new = mem_realloc(old, size);
+    prof_alloc(new, size);
     return new;
 }
 
 pmem_public void free(void *ptr)
 {
-    pmem_lock();
-
     prof_free(ptr);
     mem_free(ptr);
-
-    pmem_unlock();
 }
 
 

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 // -----------------------------------------------------------------------------
 // attributes
@@ -31,6 +32,16 @@ size_t mem_usable_size(void *ptr);
 
 void prof_alloc(void *ptr, size_t len);
 void prof_free(void *ptr);
+
+// -----------------------------------------------------------------------------
+// lock
+// -----------------------------------------------------------------------------
+
+typedef atomic_int lock_t;
+
+void pmem_lock(lock_t *lock);
+bool pmem_try_lock(lock_t *lock);
+void pmem_unlock(lock_t *lock);
 
 
 // -----------------------------------------------------------------------------

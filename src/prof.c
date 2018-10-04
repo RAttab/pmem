@@ -21,6 +21,18 @@ struct source
     void *bt[];
 };
 
+// Used to protect the prof htables.
+static lock_t prof_lock = 0;
+
+// Used to ensure that we only have a single dumper running. This is usually
+// used in a non-blocking fashion (ie. if locked, skip dumping).
+static lock_t dump_lock = 0;
+
+// This flag is used to ignore profiling allocations made by the profiler which
+// also avoids re-entrency issues.
+static __thread bool profiling = 0;
+
+static atomic_size_t churn = 0;
 static struct htable live = {0};
 static struct htable sources = {0};
 
@@ -84,11 +96,15 @@ static struct source *source_get()
 // prof
 // -----------------------------------------------------------------------------
 
-static void prof_dump(size_t len)
+static void prof_dump()
 {
-    static size_t churn = 0;
     static const size_t churn_thresh = 1UL << 24; // 1Mb
-    if ((churn += len) < churn_thresh) return;
+    if (atomic_load(&churn) < churn_thresh) return;
+
+    // backtrace_symbols can allocate so we have to jump through fiery hoops to
+    // avoid re-entrency issues.
+    if (!pmem_try_lock(&dump_lock)) return;
+    profiling = true;
 
     char file[256] = {0};
     snprintf(file, sizeof(file), "pmem.%d.log", getpid());
@@ -104,7 +120,7 @@ static void prof_dump(size_t len)
          it = htable_next(&sources, it))
     {
         struct source *source = pun_itop(it->value);
-        
+
         dprintf(fd, "\n{%lx} live:%zu, alloc:%zu/%zu, free:%zu/%zu\n",
                 source->hash,
                 source->alloc.total - source->free.total,
@@ -115,26 +131,48 @@ static void prof_dump(size_t len)
         source->alloc.prev = source->alloc.total;
         source->free.prev = source->free.total;
 
-        backtrace_symbols_fd(source->bt, source->len, fd);
+        char **bt = backtrace_symbols(source->bt, source->len);
+        for (size_t i = 0; i < source->len; ++i)
+            dprintf(fd, "  {%zu} %s\n", i, bt[i]);
+        mem_free(bt); // the hoops, they are on fire!
     }
+
+    pmem_unlock(&dump_lock);
+    profiling = false;
 }
 
 void prof_alloc(void *ptr, size_t len)
 {
+    if (profiling) return;
+    pmem_lock(&prof_lock);
+    profiling = true;
+
     struct source *source = source_get();
     source->alloc.total++;
 
     struct htable_ret ret = htable_put(&live, pun_ptoi(ptr), pun_ptoi(source));
     assert(ret.ok);
 
-    prof_dump(len);
+    atomic_fetch_add(&churn, len);
+    pmem_unlock(&prof_lock);
+    profiling = false;
+    prof_dump();
 }
 
 void prof_free(void *ptr)
 {
+    if (profiling) return;
+    pmem_lock(&prof_lock);
+    profiling = true;
+
     struct htable_ret ret = htable_del(&live, pun_ptoi(ptr));
     assert(ret.ok);
 
     struct source *source = pun_itop(ret.value);
     source->free.total++;
+
+    atomic_fetch_add(&churn, mem_usable_size(ptr));
+    pmem_unlock(&prof_lock);
+    profiling = false;
+    prof_dump();
 }
