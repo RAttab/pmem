@@ -66,6 +66,7 @@ pmem_public void *realloc(void *old, size_t size)
 
 pmem_public void free(void *ptr)
 {
+    if (!ptr) return;
     prof_free(ptr);
     mem_free(ptr);
 }

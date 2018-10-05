@@ -7,7 +7,7 @@
 // state
 // -----------------------------------------------------------------------------
 
-static lock_t lock = 0;
+static lock_t mem_lock = 0;
 static void *buckets[8] = {0};
 static const size_t bucket_vma = -1UL;
 static const size_t page_len = 4096UL;
@@ -165,56 +165,52 @@ static void *bucket_realloc(size_t bucket, void *ptr, size_t new_len)
 
 void *mem_alloc(size_t len)
 {
-    pmem_lock(&lock);
+    pmem_lock(&mem_lock);
 
     size_t bucket = len_to_bucket(len);
     void *ptr = bucket == bucket_vma ? vma_alloc(len) : bucket_alloc(bucket);
 
-    pmem_unlock(&lock);
+    pmem_unlock(&mem_lock);
     return ptr;
 }
 
 void *mem_calloc(size_t n, size_t len)
 {
-    pmem_lock(&lock);
-
     void *ptr = mem_alloc(n * len);
     memset(ptr, 0, n * len);
-
-    pmem_unlock(&lock);
     return ptr;
 }
 
 void mem_free(void *ptr)
 {
-    pmem_lock(&lock);
+    if (!ptr) return;
+
+    pmem_lock(&mem_lock);
 
     size_t bucket = ptr_to_bucket(ptr);
     bucket == bucket_vma ? vma_free(ptr) : bucket_free(bucket, ptr);
 
-    pmem_unlock(&lock);
+    pmem_unlock(&mem_lock);
 }
 
 void *mem_realloc(void *ptr, size_t len)
 {
-    pmem_lock(&lock);
+    pmem_lock(&mem_lock);
 
     size_t bucket = ptr_to_bucket(ptr);
-    void *new = bucket == bucket_vma ?
-        vma_realloc(ptr, len) : bucket_realloc(bucket, ptr, len);
+    void *new = bucket == bucket_vma ? vma_realloc(ptr, len) : bucket_realloc(bucket, ptr, len);
 
-    pmem_unlock(&lock);
+    pmem_unlock(&mem_lock);
     return new;
 }
 
 size_t mem_usable_size(void *ptr)
 {
-    pmem_lock(&lock);
+    pmem_lock(&mem_lock);
 
     size_t bucket = ptr_to_bucket(ptr);
-    size_t len = bucket == bucket_vma ?
-        vma_usable_size(ptr) : bucket_to_len(bucket);
+    size_t len = bucket == bucket_vma ? vma_usable_size(ptr) : bucket_to_len(bucket);
 
-    pmem_unlock(&lock);
+    pmem_unlock(&mem_lock);
     return len;
 }

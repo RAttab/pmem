@@ -16,22 +16,26 @@ int main(int argc, char **argv)
     static void *data[sizeof_arr(sizes)][iterations] = {0};
 
     for (size_t i = 0; i < sizeof_arr(sizes); ++i) {
+        fprintf(stderr, "alloc[%zu]\n", sizes[i]);
+
         for (size_t j = 0; j < iterations; ++j) {
             void *ptr = data[i][j] = malloc(sizes[i]);
 
             size_t usable = malloc_usable_size(ptr);
             assert(usable >= 8 && usable >= sizes[i]);
 
-            *((size_t *) ptr) = sizes[i];
+            *((size_t *) ptr) = (sizes[i] * iterations + j);
         }
     }
 
     for (size_t i = 0; i < sizeof_arr(sizes); ++i) {
+        fprintf(stderr, "free[%zu]\n", sizes[i]);
+
         for (size_t j = 0; j < iterations; ++j) {
             void *ptr = data[i][j];
             assert(malloc_usable_size(ptr) >= sizes[i]);
 
-            assert(*((size_t *) ptr) == sizes[i]);
+            assert(*((size_t *) ptr) == (sizes[i] * iterations + j));
             free(ptr);
         }
     }

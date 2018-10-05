@@ -32,7 +32,10 @@ static lock_t dump_lock = 0;
 // also avoids re-entrency issues.
 static __thread bool profiling = 0;
 
+// Policy for when to dump.
 static atomic_size_t churn = 0;
+static const size_t churn_thresh = 1UL << 20; // 1Mb
+
 static struct htable live = {0};
 static struct htable sources = {0};
 
@@ -43,12 +46,12 @@ static struct htable sources = {0};
 
 static_assert(sizeof(uint64_t) == sizeof(void *), "portatibility issue");
 
-inline void * pun_itop(uint64_t value)
+static inline void * pun_itop(uint64_t value)
 {
     return (union { uint64_t i; void *p; }) { .i = value }.p;
 }
 
-inline uint64_t pun_ptoi(void * value)
+static inline uint64_t pun_ptoi(void * value)
 {
     return (union { uint64_t i; void *p; }) { .p = value }.i;
 }
@@ -98,8 +101,8 @@ static struct source *source_get()
 
 static void prof_dump()
 {
-    static const size_t churn_thresh = 1UL << 24; // 1Mb
-    if (atomic_load(&churn) < churn_thresh) return;
+    size_t current_churn = atomic_load(&churn);
+    if (current_churn < churn_thresh) return;
 
     // backtrace_symbols can allocate so we have to jump through fiery hoops to
     // avoid re-entrency issues.
@@ -107,14 +110,19 @@ static void prof_dump()
     profiling = true;
 
     char file[256] = {0};
-    snprintf(file, sizeof(file), "pmem.%d.log", getpid());
-    int fd = open(file, O_CREAT | O_APPEND, 0600);
-    assert(fd >= 0);
+    snprintf(file, sizeof(file), "./pmem.%d.log", getpid());
+    int fd = open(file, O_CREAT | O_APPEND | O_WRONLY, 0600);
+    if (fd == -1) {
+        fprintf(stderr, "unable to open '%s': %s(%d)\n", file, strerror(errno), errno);
+        goto fail_dump;
+    }
 
     static size_t snapshot = 0;
     dprintf(fd,
-            "\n[%3zu]=========================================================",
-            snapshot++);
+            "\n[%3zu]=========================================================\n"
+            "churn=%zu/%zu\n",
+            snapshot++, current_churn, churn_thresh);
+
 
     for (struct htable_bucket *it = htable_next(&sources, NULL); it;
          it = htable_next(&sources, it))
@@ -137,6 +145,9 @@ static void prof_dump()
         mem_free(bt); // the hoops, they are on fire!
     }
 
+  fail_dump:
+    atomic_store(&churn, 0);
+    close(fd);
     pmem_unlock(&dump_lock);
     profiling = false;
 }

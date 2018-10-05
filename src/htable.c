@@ -12,7 +12,7 @@ enum { probe_window = 8 };
 // -----------------------------------------------------------------------------
 
 // FNV-1a hash implementation: http://isthe.com/chongo/tech/comp/fnv/
-inline uint64_t hash_key(uint64_t key)
+static inline uint64_t hash_key(uint64_t key)
 {
     const uint8_t *data = (uint8_t *) &key;
 
