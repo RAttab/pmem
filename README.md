@@ -1,14 +1,14 @@
-# pmem
+# PMEM
 
-A dirt simple memory profiler that works by replacing malloc.
+A dirt simple malloc replacement for memory profiling
 
 
-# raison d'etre (why?)
+# Raison d'Etre (Why?)
 
-I needed to track down the source of a memory build up in a rust server (shocking!)
-running in production but only when I was rubbing my stomach while hoping on one
-foot with a coconut on my head. The following tools were attempted and found
-lacking:
+I needed to track down the source of a memory build up in a rust server
+(shocking!) running in production but only when rubbing my stomach while hoping
+on one foot with a coconut on my head. The following tools were attempted and
+found lacking:
 
 - `valgrind` is too slow which tends to bias the output my scenario.
 - `tcmalloc` is in C++ and the ABI makes that a nightmare for production debugging.
@@ -17,7 +17,7 @@ lacking:
 That and I did it because I was bored... Mostly because I was bored...
 
 
-# building
+# Building
 
 Configuration is done via the `config.h` file in the root of the repo.
 
@@ -33,7 +33,7 @@ This will produce a `libpmem.so` in the build folder. No install targets are
 provided as I don't expect anybody but me will ever use this.
 
 
-# using
+# Using
 
 `pmem` works by replacing malloc which is usually done via `ld`:
 
@@ -89,7 +89,7 @@ Vile, for good fortune. Otherwise you'll end up having to hunt addresses using
 `objdump` which is not pleasant.
 
 
-# can pmem do...
+# Can pmem do...?
 
 Nop but it probably could. Besides the re-entrency issues in `prof.c` the code
 is simple enough (famous last words) so shouldn't be too hard to adapt to your
