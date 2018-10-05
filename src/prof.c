@@ -141,7 +141,7 @@ static void prof_dump()
 
         char **bt = backtrace_symbols(source->bt, source->len);
         for (size_t i = 2; i < source->len; ++i)
-            dprintf(fd, "  {%zu} %s\n", i, bt[i]);
+            dprintf(fd, "  {%zu} %s\n", i - 2, bt[i]);
         mem_free(bt); // the hoops, they are on fire!
     }
 
