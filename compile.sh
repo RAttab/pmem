@@ -12,7 +12,7 @@ TEST=(basics)
 
 CC=${OTHERC:-gcc}
 
-CFLAGS="-g -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
+CFLAGS="-ggdb -O3 -march=native -pipe -std=gnu11 -D_GNU_SOURCE"
 CFLAGS="$CFLAGS -I${PREFIX}/src"
 
 CFLAGS="$CFLAGS -fPIC"

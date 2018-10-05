@@ -34,7 +34,7 @@ static __thread bool profiling = 0;
 
 // Policy for when to dump.
 static atomic_size_t churn = 0;
-static const size_t churn_thresh = 1UL << 20; // 1Mb
+static const size_t churn_thresh = PMEM_CHURN_THRESH;
 
 static struct htable live = {0};
 static struct htable sources = {0};
@@ -140,7 +140,7 @@ static void prof_dump()
         source->free.prev = source->free.total;
 
         char **bt = backtrace_symbols(source->bt, source->len);
-        for (size_t i = 0; i < source->len; ++i)
+        for (size_t i = 2; i < source->len; ++i)
             dprintf(fd, "  {%zu} %s\n", i, bt[i]);
         mem_free(bt); // the hoops, they are on fire!
     }
