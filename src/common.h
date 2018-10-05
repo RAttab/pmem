@@ -77,6 +77,5 @@ void htable_reset(struct htable *);
 void htable_reserve(struct htable *, size_t items);
 struct htable_ret htable_get(struct htable *, uint64_t key);
 struct htable_ret htable_put(struct htable *, uint64_t key, uint64_t value);
-struct htable_ret htable_xchg(struct htable *, uint64_t key, uint64_t value);
 struct htable_ret htable_del(struct htable *, uint64_t key);
 struct htable_bucket * htable_next(struct htable *, struct htable_bucket *bucket);

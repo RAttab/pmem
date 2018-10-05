@@ -150,8 +150,7 @@ struct htable_ret htable_del(struct htable *ht, uint64_t key)
     return (struct htable_ret) { .ok = false };
 }
 
-struct htable_bucket * htable_next(
-        struct htable *ht, struct htable_bucket *bucket)
+struct htable_bucket * htable_next(struct htable *ht, struct htable_bucket *bucket)
 {
     if (!ht->table) return NULL;
 
