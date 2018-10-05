@@ -99,15 +99,16 @@ static struct source *source_get()
 // prof
 // -----------------------------------------------------------------------------
 
-static void prof_dump()
+static void prof_dump(size_t len)
 {
-    size_t current_churn = atomic_load(&churn);
-    if (current_churn < churn_thresh) return;
+    size_t churn_current = atomic_fetch_add(&churn, len) + len;
+    if (churn_current < churn_thresh) return;
 
-    // backtrace_symbols can allocate so we have to jump through fiery hoops to
-    // avoid re-entrency issues.
     if (!pmem_try_lock(&dump_lock)) return;
+    pmem_lock(&prof_lock);
     profiling = true;
+
+    atomic_store(&churn, 0);
 
     char file[256] = {0};
     snprintf(file, sizeof(file), "./pmem.%d.log", getpid());
@@ -121,7 +122,7 @@ static void prof_dump()
     dprintf(fd,
             "\n[%3zu]=========================================================\n"
             "churn=%zu/%zu\n",
-            snapshot++, current_churn, churn_thresh);
+            snapshot++, churn_current, churn_thresh);
 
 
     for (struct htable_bucket *it = htable_next(&sources, NULL); it;
@@ -142,14 +143,15 @@ static void prof_dump()
         char **bt = backtrace_symbols(source->bt, source->len);
         for (size_t i = 2; i < source->len; ++i)
             dprintf(fd, "  {%zu} %s\n", i - 2, bt[i]);
-        mem_free(bt); // the hoops, they are on fire!
+        free(bt); // don't think too hard about what this does...
     }
 
-  fail_dump:
-    atomic_store(&churn, 0);
+
     close(fd);
-    pmem_unlock(&dump_lock);
+  fail_dump:
     profiling = false;
+    pmem_unlock(&prof_lock);
+    pmem_unlock(&dump_lock);
 }
 
 void prof_alloc(void *ptr, size_t len)
@@ -164,10 +166,10 @@ void prof_alloc(void *ptr, size_t len)
     struct htable_ret ret = htable_put(&live, pun_ptoi(ptr), pun_ptoi(source));
     assert(ret.ok);
 
-    atomic_fetch_add(&churn, len);
-    pmem_unlock(&prof_lock);
     profiling = false;
-    prof_dump();
+    pmem_unlock(&prof_lock);
+
+    prof_dump(len);
 }
 
 void prof_free(void *ptr)
@@ -182,8 +184,8 @@ void prof_free(void *ptr)
     struct source *source = pun_itop(ret.value);
     source->free.total++;
 
-    atomic_fetch_add(&churn, mem_usable_size(ptr));
-    pmem_unlock(&prof_lock);
     profiling = false;
-    prof_dump();
+    pmem_unlock(&prof_lock);
+
+    prof_dump(mem_usable_size(ptr));
 }
