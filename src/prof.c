@@ -129,6 +129,7 @@ static void prof_dump(size_t len)
          it = htable_next(&sources, it))
     {
         struct source *source = pun_itop(it->value);
+        if (source->alloc.total == source->free.total) continue;
 
         dprintf(fd, "\n{%lx} live:%zu, alloc:%zu/%zu, free:%zu/%zu\n",
                 source->hash,
