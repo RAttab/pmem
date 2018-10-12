@@ -3,14 +3,19 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <execinfo.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
 
 // -----------------------------------------------------------------------------
 // state
 // -----------------------------------------------------------------------------
+
+
+struct frame
+{
+    char name[128];
+    uint64_t off;
+};
 
 struct source
 {
@@ -18,7 +23,7 @@ struct source
     struct { size_t total, prev; } alloc, free;
 
     size_t len;
-    void *bt[];
+    struct frame bt[];
 };
 
 // Used to protect the prof htables.
@@ -61,24 +66,98 @@ static inline uint64_t pun_ptoi(void * value)
 // source
 // -----------------------------------------------------------------------------
 
-static inline uint64_t source_hash(void **bt, size_t len)
+static inline uint64_t addr_hash(uint64_t hash, uint64_t addr)
 {
-    const uint8_t *data = (uint8_t *) bt;
+    const uint8_t *data = (uint8_t *) &addr;
+    if (!hash) hash = 0xcbf29ce484222325;
 
-    uint64_t hash = 0xcbf29ce484222325;
-    for (size_t i = 0; i < len * sizeof(*bt); ++i)
+    for (size_t i = 0; i < sizeof(addr); ++i)
         hash = (hash ^ data[i]) * 0x100000001b3;
 
-    assert(hash); // \todo Can't be 0
     return hash;
 }
 
+#ifdef PMEM_LIBUNWIND
+
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+
+static const char frame_unknown[] = "unknown";
+static_assert(sizeof(frame_unknown) < sizeof((struct frame){}.name), "unknown symbol too big");
+
+static void source_hash(uint64_t *hash, size_t *len)
+{
+    unw_context_t ctx;
+    unw_getcontext(&ctx);
+
+    unw_cursor_t cursor;
+    unw_init_local(&cursor, &ctx);
+
+    *len = 0;
+    *hash = 0;
+
+    while (unw_step(&cursor) > 0) {
+        unw_word_t ip;
+        unw_get_reg(&cursor, UNW_REG_IP, &ip);
+        *hash = addr_hash(*hash, ip);
+        (*len)++;
+    }
+}
+
+static void source_bt(struct source *source)
+{
+    unw_context_t ctx;
+    unw_getcontext(&ctx);
+
+    unw_cursor_t cursor;
+    unw_init_local(&cursor, &ctx);
+
+    for (size_t i = 0; unw_step(&cursor) > 0; ++i) {
+        struct frame *frame = &source->bt[i];
+
+        int ret = unw_get_proc_name(&cursor, frame->name, sizeof(frame->name), &frame->off);
+        if (ret == -UNW_ENOINFO) memcpy(frame->name, frame_unknown, sizeof(frame_unknown));
+        else assert(!ret);
+    }
+}
+
+#else
+
+#include <execinfo.h>
+
+static void source_hash(uint64_t *hash, size_t *len)
+{
+    void *bt[256];
+    *len = backtrace(bt, sizeof(bt) / sizeof(bt[0]));
+
+    for (size_t i = 0; i < *len; ++i) {
+        *hash = addr_hash(*hash, (uint64_t) bt[i]);
+    }
+}
+
+static void source_bt(struct source *source)
+{
+    void *bt[256];
+    size_t len = backtrace(bt, sizeof(bt) / sizeof(bt[0]));
+    assert(len == source->len);
+
+    char **symbols = backtrace_symbols(bt, source->len);
+
+    for (size_t i = 0; i < len; ++i) {
+        struct frame *frame = &source->bt[i];
+        size_t len = strnlen(symbols[i], sizeof(frame->name));
+        memcpy(frame->name, symbols[i], len);
+    }
+
+    free(symbols);
+}
+
+#endif
 
 static struct source *source_get()
 {
-    void *bt[256];
-    int len = backtrace(bt, sizeof(bt) / sizeof(bt[0]));
-    uint64_t hash = source_hash(bt, len);
+    uint64_t hash; size_t len;
+    source_hash(&hash, &len);
 
     struct htable_ret ret = htable_get(&sources, hash);
     if (ret.ok) return pun_itop(ret.value);
@@ -86,7 +165,7 @@ static struct source *source_get()
     struct source *source = mem_calloc(1, sizeof(*source) + sizeof(source->bt[0]) * len);
     source->hash = hash;
     source->len = len;
-    memcpy(source->bt, bt, sizeof(bt[0]) * len);
+    source_bt(source);
 
     ret = htable_put(&sources, hash, pun_ptoi(source));
     assert(ret.ok);
@@ -142,10 +221,13 @@ static void prof_dump(size_t len)
         source->alloc.prev = source->alloc.total;
         source->free.prev = source->free.total;
 
-        char **bt = backtrace_symbols(source->bt, source->len);
-        for (size_t i = 2; i < source->len; ++i)
-            dprintf(fd, "  {%zu} %s\n", i - 2, bt[i]);
-        free(bt); // don't think too hard about what this does...
+        for (size_t i = 0; i < source->len; ++i) {
+            struct frame *frame = &source->bt[i];
+            if (!frame->off)
+                dprintf(fd, "  {%zu} %s\n", i, frame->name);
+            else
+                dprintf(fd, "  {%zu} %s+%lu\n", i, frame->name, frame->off);
+        }
     }
 
 
