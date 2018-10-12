@@ -58,7 +58,7 @@ pmem_public void *calloc(size_t nmemb, size_t size)
 
 pmem_public void *realloc(void *old, size_t size)
 {
-    prof_free(old);
+    if (old) prof_free(old);
     void *new = mem_realloc(old, size);
     prof_alloc(new, size);
     return new;
