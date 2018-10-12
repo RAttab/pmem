@@ -117,7 +117,7 @@ static void source_bt(struct source *source)
 
         int ret = unw_get_proc_name(&cursor, frame->name, sizeof(frame->name), &frame->off);
         if (ret == -UNW_ENOINFO) memcpy(frame->name, frame_unknown, sizeof(frame_unknown));
-        else assert(!ret);
+        else if (ret != -UNW_ENOMEM) assert(!ret);
     }
 }
 
