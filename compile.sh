@@ -31,6 +31,10 @@ CFLAGS="$CFLAGS -Winit-self"
 CFLAGS="$CFLAGS -Wno-strict-aliasing"
 CFLAGS="$CFLAGS -Wno-implicit-fallthrough"
 
+# Feels a bit dirty but oh well
+grep -q '^#define PMEM_LIBUNWIND$' "${PREFIX}/config.h" && \
+    CFLAGS="$CFLAGS -lunwind"
+
 OBJ=""
 for src in "${SRC[@]}"; do
     $CC -c -o "$src.o" "${PREFIX}/src/$src.c" $CFLAGS
