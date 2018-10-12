@@ -89,21 +89,6 @@ static void vma_free(void *raw)
     munmap(ptr, vma_len);
 }
 
-static void *vma_realloc(void *raw, size_t len)
-{
-    void *ptr = ptr_dec(raw, page_len);
-    size_t vma_len = ptr_read_u64(ptr);
-
-    if ((vma_len - page_len) >= len) return raw;
-
-    size_t new_vma_len = to_vma_len(len) + page_len;
-    void *new_ptr = mremap(ptr, vma_len, new_vma_len, MREMAP_MAYMOVE);
-    if (!new_ptr) return NULL;
-
-    ptr_write_u64(new_ptr, new_vma_len);
-    return ptr_inc(new_ptr, page_len);
-}
-
 static size_t vma_usable_size(void *raw)
 {
     void *ptr = ptr_dec(raw, page_len);
@@ -144,32 +129,34 @@ static void bucket_free(size_t bucket, void *ptr)
     buckets[bucket] = ptr;
 }
 
-static void *bucket_realloc(size_t bucket, void *ptr, size_t new_len)
-{
-    size_t len = bucket_to_len(bucket);
-    if (len >= new_len) return ptr;
-
-    void *new_ptr = mem_alloc(new_len);
-    if (!new_ptr) return NULL;
-
-    memcpy(new_ptr, ptr, len);
-    bucket_free(bucket, ptr);
-
-    return new_ptr;
-}
-
 
 // -----------------------------------------------------------------------------
 // mem
 // -----------------------------------------------------------------------------
 
+static void *mem_alloc_impl(size_t len)
+{
+   size_t bucket = len_to_bucket(len);
+   return bucket == bucket_vma ? vma_alloc(len) : bucket_alloc(bucket);
+}
+
+static void mem_free_impl(void *ptr)
+{
+    size_t bucket = ptr_to_bucket(ptr);
+    bucket == bucket_vma ? vma_free(ptr) : bucket_free(bucket, ptr);
+}
+
+static size_t mem_usable_size_impl(void *ptr)
+{
+    size_t bucket = ptr_to_bucket(ptr);
+    return bucket == bucket_vma ? vma_usable_size(ptr) : bucket_to_len(bucket);
+}
+
+
 void *mem_alloc(size_t len)
 {
     pmem_lock(&mem_lock);
-
-    size_t bucket = len_to_bucket(len);
-    void *ptr = bucket == bucket_vma ? vma_alloc(len) : bucket_alloc(bucket);
-
+    void *ptr = mem_alloc_impl(len);
     pmem_unlock(&mem_lock);
     return ptr;
 }
@@ -186,19 +173,18 @@ void mem_free(void *ptr)
     if (!ptr) return;
 
     pmem_lock(&mem_lock);
-
-    size_t bucket = ptr_to_bucket(ptr);
-    bucket == bucket_vma ? vma_free(ptr) : bucket_free(bucket, ptr);
-
+    mem_free_impl(ptr);
     pmem_unlock(&mem_lock);
 }
+
 
 void *mem_realloc(void *ptr, size_t len)
 {
     pmem_lock(&mem_lock);
 
-    size_t bucket = ptr_to_bucket(ptr);
-    void *new = bucket == bucket_vma ? vma_realloc(ptr, len) : bucket_realloc(bucket, ptr, len);
+    void *new = mem_alloc_impl(len);
+    memcpy(new, ptr, mem_usable_size_impl(ptr));
+    mem_free_impl(ptr);
 
     pmem_unlock(&mem_lock);
     return new;
@@ -207,10 +193,7 @@ void *mem_realloc(void *ptr, size_t len)
 size_t mem_usable_size(void *ptr)
 {
     pmem_lock(&mem_lock);
-
-    size_t bucket = ptr_to_bucket(ptr);
-    size_t len = bucket == bucket_vma ? vma_usable_size(ptr) : bucket_to_len(bucket);
-
+    size_t len = mem_usable_size_impl(ptr);
     pmem_unlock(&mem_lock);
     return len;
 }
