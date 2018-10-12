@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     for (size_t it = 0; it < 10; ++it) {
 
         for (size_t i = 0; i < sizeof_arr(sizes); ++i) {
-            fprintf(stderr, "alloc[%zu:%zu]\n", it, sizes[i]);
+            /* fprintf(stderr, "alloc[%zu:%zu]\n", it, sizes[i]); */
 
             for (size_t j = 0; j < allocations; ++j) {
                 void *ptr = data[i][j] = malloc(sizes[i]);
@@ -32,7 +32,7 @@ int main(int argc, char **argv)
         }
 
         for (size_t i = 0; i < sizeof_arr(sizes); ++i) {
-            fprintf(stderr, "free[%zu:%zu]\n", it, sizes[i]);
+            /* fprintf(stderr, "free[%zu:%zu]\n", it, sizes[i]); */
 
             for (size_t j = 0; j < allocations; ++j) {
                 void *ptr = data[i][j];
