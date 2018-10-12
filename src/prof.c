@@ -129,15 +129,16 @@ static void prof_dump(size_t len)
          it = htable_next(&sources, it))
     {
         struct source *source = pun_itop(it->value);
-        if (source->alloc.total == source->free.total) continue;
+
+        size_t live = source->alloc.total - source->free.total;
+        size_t allocated = source->alloc.total - source->alloc.prev;
+        size_t freed = source->free.total - source->free.prev;
+        if (!live || (!allocated && !freed)) continue;
 
         dprintf(fd, "\n{%lx} live:%zu, alloc:%zu/%zu, free:%zu/%zu\n",
-                source->hash,
-                source->alloc.total - source->free.total,
-                source->alloc.total - source->alloc.prev,
-                source->alloc.total,
-                source->free.total - source->free.prev,
-                source->free.total);
+                source->hash, live,
+                allocated, source->alloc.total,
+                freed, source->free.total);
         source->alloc.prev = source->alloc.total;
         source->free.prev = source->free.total;
 
